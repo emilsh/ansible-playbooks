@@ -1,0 +1,59 @@
+---
+- name: "Manage my db"
+  become: true
+  become_user: "postgres"
+  hosts: postgres_master
+
+  tasks:
+  - name: "Create db"
+    community.postgresql.postgresql_db:
+      name: acme1
+      comment: "My test DB"
+
+  - name: "Create table"
+    community.postgresql.postgresql_table:
+      db: "acme1"
+      name: "employees"
+      columns:
+      - "id serial not null constraint employees_pk primary key"
+      - "name text"
+      - "license_plate text"
+
+  - name: "Create user and give some privileges"
+    community.postgresql.postgresql_user:
+      db: "acme1"
+      name: "vagrant"
+      password: "vagrant"
+      priv: "CONNECT/employees:ALL"
+
+  - name: "Change owner to vagrant user"
+    community.postgresql.postgresql_owner:
+      db: "acme1"
+      new_owner: "vagrant"
+      obj_name: "employees"
+      obj_type: "table"
+
+  - name: "Create unique index employees_id_uindex on employees (id)"
+    community.postgresql.postgresql_idx:
+      db: "acme1"
+      table: "employees"
+      columns: "id"
+      name: "employees_id_uindex"
+      unique: true
+      concurrent: false
+
+  - name: "Trying to add some data to employees table"
+    block:
+      - name: "Add some data to employees table"
+        community.postgresql.postgresql_query:
+          db: "acme1"
+          query: |
+            INSERT INTO public.employees (id, name, license_plate) VALUES (1, 'John B.', 'DB124GR');
+            INSERT INTO public.employees (id, name, license_plate) VALUES (2, 'Jill J.', 'VG645PH');
+            INSERT INTO public.employees (id, name, license_plate) VALUES (3, 'Phil K.', 'GG322GG');
+    rescue:
+      - name: "Something went wrong"
+        ansible.builtin.debug:
+          msg: "Couldn't add data to employees table"
+
+
